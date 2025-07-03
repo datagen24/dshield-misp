@@ -1,0 +1,36 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Docker compose override files (may contain sensitive data)
+docker-compose.override.yml
+
+# 1Password session files
+.op/
+
+# Logs
+*.log
+logs/
+
+# Database files
+*.db
+*.sqlite
+
+# Temporary files
+*.tmp
+*.temp
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Custom configs (user-specific)
+custom/config/local/
+custom/scripts/local/ 

@@ -1,0 +1,80 @@
+version: '3.6'
+
+services:
+  misp-web:
+    image: harvarditsecurity/misp:latest
+    container_name: misp-web
+    environment:
+      - MISP_FQDN=${MISP_FQDN:-misp.local}
+      - MISP_EMAIL=${MISP_EMAIL:-admin@example.com}
+      - MISP_PASSWORD=${MISP_PASSWORD:-admin}
+      - MISP_ORG=${MISP_ORG:-ORGNAME}
+      - MISP_BASEURL=${MISP_BASEURL:-https://misp.local}
+      # Add more MISP environment variables as needed
+    depends_on:
+      - misp-db
+      - misp-redis
+      - misp-modules
+      - misp-workers
+      - misp-email-relay
+    ports:
+      - "8080:80"
+    volumes:
+      - ./custom/config:/var/www/MISP/app/Config
+      - ./custom/scripts:/custom-scripts
+    restart: unless-stopped
+
+  misp-db:
+    image: mariadb:10.5
+    container_name: misp-db
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-misproot}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-misp}
+      - MYSQL_USER=${MYSQL_USER:-misp}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-misp}
+    volumes:
+      - misp-db-data:/var/lib/mysql
+    restart: unless-stopped
+
+  misp-redis:
+    image: redis:alpine
+    container_name: misp-redis
+    restart: unless-stopped
+
+  misp-modules:
+    image: harvarditsecurity/misp-modules:latest
+    container_name: misp-modules
+    depends_on:
+      - misp-redis
+    ports:
+      - "6666:6666"
+    restart: unless-stopped
+
+  misp-workers:
+    image: harvarditsecurity/misp-workers:latest
+    container_name: misp-workers
+    depends_on:
+      - misp-db
+      - misp-redis
+    restart: unless-stopped
+
+  # Email relay service (modular)
+  misp-email-relay:
+    image: bytemark/smtp
+    container_name: misp-email-relay
+    environment:
+      - RELAY_HOST=${SMTP_RELAY_HOST:-smtp.example.com}
+      - RELAY_PORT=${SMTP_RELAY_PORT:-587}
+      - RELAY_USERNAME=${SMTP_RELAY_USERNAME:-user}
+      - RELAY_PASSWORD=${SMTP_RELAY_PASSWORD:-pass}
+    # To use Office365 Graph-to-SMTP proxy, replace this service with your custom image/config
+    # and update the environment variables accordingly.
+    restart: unless-stopped
+
+volumes:
+  misp-db-data:
+
+# Customization points:
+# - To use a different email relay, override the misp-email-relay service.
+# - Place custom configs/scripts in ./custom/config and ./custom/scripts.
+# - Use 1Password integration for secure credential management. 
