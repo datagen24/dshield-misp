@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-07-03
+
+### Added
+- **Enhanced 1Password Integration**:
+  - Automated setup script (`setup-1password.sh`) for creating 1Password items
+  - Advanced import script (`import-1password-items.sh`) for existing items
+  - Comprehensive testing script (`test-1password-setup.sh`) for verification
+  - **1Password Native Password Generation**:
+    - Uses 1Password's built-in `--generate-password` option
+    - MISP admin passwords: 20 characters with letters and digits (memorable)
+    - Database passwords: 32 characters with letters, digits, and symbols (secure)
+    - Automatic temporary item creation and cleanup
+  - **Multiple Password Generation Options**:
+    - 1Password native generation (recommended)
+    - Manual generation with regeneration capability
+    - Manual password entry
+  - **Cross-vault Operations**: Support for different environments (dev, staging, prod)
+  - **Batch Operations**: Non-interactive mode for automation
+  - **Environment Testing**: Comprehensive verification of setup
+- **Improved User Experience**:
+  - Interactive prompts with sensible defaults
+  - Non-interactive mode support for CI/CD
+  - Colored output for better readability
+  - Comprehensive error handling and validation
+  - Password regeneration capability (type 'regenerate' for new passwords)
+- **Enhanced Documentation**:
+  - Comprehensive 1Password setup guide (`1PASSWORD_SETUP.md`)
+  - Quick reference guide (`custom/config/1password-setup.md`)
+  - Password generation examples and best practices
+  - Troubleshooting guide with common issues and solutions
+  - Security best practices and recommendations
+
+### Changed
+- **1Password Item Categories**: Fixed Office365 item category from "api-credential" to "API Credential"
+- **Password Generation**: Replaced custom password generation with 1Password's native capabilities
+- **Setup Process**: Streamlined setup with automated item creation and verification
+- **Error Handling**: Improved error messages and fallback mechanisms
+
+### Technical Improvements
+- **Temporary Item Management**: Automatic creation and cleanup of temporary password items
+- **JSON Parsing**: Improved handling of 1Password CLI output
+- **Terminal Detection**: Better handling of interactive vs non-interactive environments
+- **Vault Management**: Automatic vault creation if it doesn't exist
+- **Field Validation**: Comprehensive checking of required fields and values
+
 ## [1.0.0] - 2025-01-02
 
 ### Added
