@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Cross-vault Operations**: Support for different environments (dev, staging, prod)
   - **Batch Operations**: Non-interactive mode for automation
   - **Environment Testing**: Comprehensive verification of setup
+- **Microsoft-Graph-SMTP-Relay Integration**:
+  - Automated Docker image building from source
+  - Automatic repository cloning and updates
+  - Local image building to avoid GHCR authentication issues
+  - Integration with setup script for seamless Office365 configuration
 - **Improved User Experience**:
   - Interactive prompts with sensible defaults
   - Non-interactive mode support for CI/CD
