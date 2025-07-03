@@ -2,20 +2,39 @@ version: '3.6'
 
 services:
   misp-web:
-    image: harvarditsecurity/misp:latest
+    image: ghcr.io/misp/misp-docker/misp-core:latest
     container_name: misp-web
     environment:
+      # MISP Configuration
+      - BASE_URL=${MISP_BASEURL:-https://misp.local}
+      - ADMIN_EMAIL=${MISP_EMAIL:-admin@example.com}
+      - ADMIN_PASSWORD=${MISP_PASSWORD:-admin}
+      - ADMIN_ORG=${MISP_ORG:-ORGNAME}
       - MISP_FQDN=${MISP_FQDN:-misp.local}
-      - MISP_EMAIL=${MISP_EMAIL:-admin@example.com}
-      - MISP_PASSWORD=${MISP_PASSWORD:-admin}
-      - MISP_ORG=${MISP_ORG:-ORGNAME}
-      - MISP_BASEURL=${MISP_BASEURL:-https://misp.local}
-      # Add more MISP environment variables as needed
+      # Database Configuration
+      - MYSQL_HOST=misp-db
+      - MYSQL_PORT=3306
+      - MYSQL_USER=${MYSQL_USER:-misp}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-misp}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-misp}
+      # Redis Configuration
+      - REDIS_HOST=misp-redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redispassword}
+      # MISP Modules Configuration
+      - MISP_MODULES_FQDN=http://misp-modules
+      # Worker Configuration
+      - NUM_WORKERS_DEFAULT=5
+      - NUM_WORKERS_PRIO=5
+      - NUM_WORKERS_EMAIL=5
+      - NUM_WORKERS_UPDATE=1
+      - NUM_WORKERS_CACHE=5
+      # SMTP Configuration
+      - SMTP_FQDN=${MISP_FQDN:-misp.local}
     depends_on:
       - misp-db
       - misp-redis
       - misp-modules
-      - misp-workers
       - misp-email-relay
     ports:
       - "8080:80"
@@ -39,23 +58,16 @@ services:
   misp-redis:
     image: redis:alpine
     container_name: misp-redis
+    command: "--save '' --requirepass '${REDIS_PASSWORD:-redispassword}'"
     restart: unless-stopped
 
   misp-modules:
-    image: harvarditsecurity/misp-modules:latest
+    image: ghcr.io/misp/misp-docker/misp-modules:latest
     container_name: misp-modules
     depends_on:
       - misp-redis
     ports:
       - "6666:6666"
-    restart: unless-stopped
-
-  misp-workers:
-    image: harvarditsecurity/misp-workers:latest
-    container_name: misp-workers
-    depends_on:
-      - misp-db
-      - misp-redis
     restart: unless-stopped
 
   # Email relay service (modular)
@@ -77,4 +89,5 @@ volumes:
 # Customization points:
 # - To use a different email relay, override the misp-email-relay service.
 # - Place custom configs/scripts in ./custom/config and ./custom/scripts.
-# - Use 1Password integration for secure credential management. 
+# - Use 1Password integration for secure credential management.
+# - Workers are now managed within the main MISP container using environment variables. 

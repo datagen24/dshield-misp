@@ -37,4 +37,7 @@ custom/scripts/local/
 
 # Microsoft Graph SMTP Relay build artifacts
 Microsoft-Graph-SMTP-Relay/
-microsoft-graph-smtp-relay/ 
+microsoft-graph-smtp-relay/
+
+# MISP Docker build artifacts
+misp-docker/ 

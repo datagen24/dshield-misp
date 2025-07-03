@@ -29,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Automatic repository cloning and updates
   - Local image building to avoid GHCR authentication issues
   - Integration with setup script for seamless Office365 configuration
+- **Official MISP Docker Integration**:
+  - Migrated from harvarditsecurity images to official MISP Docker images
+  - Automatic image accessibility checking and fallback to source building
+  - Integrated worker management within main MISP container
+  - Enhanced environment variable configuration for official MISP images
 - **Improved User Experience**:
   - Interactive prompts with sensible defaults
   - Non-interactive mode support for CI/CD
