@@ -1,0 +1,173 @@
+---
+description: Apply these rules when making changes to the project
+globs:
+alwaysApply: true
+---
+
+Update this rule if user requested changes to the project requirement, etc.
+## Project Overview
+
+*   **Type:** cursor_project_rules
+*   **Description:** The **dshield-misp** project provides a robust, automated solution for deploying and managing a MISP (Malware Information Sharing Platform) instance. It leverages Docker Compose for container orchestration and deep integration with 1Password CLI for secure credential management, avoiding hardcoded secrets. It includes Bash automation scripts, configuration templates, and comprehensive documentation to support setup, customization, and future integrations with dshield-siem and dshield-mcp.
+*   **Primary Goal:** Secure, one-command deployment of a fully functional MISP stack with dynamic 1Password-based secret retrieval.
+
+## Project Structure
+
+### Framework-Specific Routing
+
+*   **Directory Rules:**
+
+    *   N/A – this is a CLI and container-based project without a web framework router.
+
+### Core Directories
+
+*   **Versioned Structure:**
+
+    *   scripts/: Bash automation for setup and environment loading
+    *   custom/config/: User-specific configuration overrides and extensions
+    *   docs/: Project documentation, guides, and CHANGELOG
+    *   config/templates/: Template files (`.env.template`, etc.) for environment and Compose
+
+### Key Files
+
+*   **Stack-Versioned Patterns:**
+
+    *   setup.sh → Interactive one-command setup orchestrating 1Password CLI, vault creation, and `.env` generation
+    *   setup-1password.sh → Uses 1Password CLI v2 syntax to create and import vault items
+    *   import-1password-items.sh → Populates 1Password vaults with credentials for DB, MISP, and email relay
+    *   load-1password-env.sh → Exports environment variables from 1Password items at runtime
+    *   docker-compose.yml → Docker Compose v2 definition for MISP, MariaDB, Redis, modules, workers, and optional email relay
+    *   .env.template → Template listing all required environment variables
+    *   custom/config/*.md → User-provided configuration and extension documentation
+
+## Tech Stack Rules
+
+*   **Version Enforcement:**
+
+    *   docker@20+: Use Compose v2 file format, defined `services`, `volumes`, `networks`, and restart policies
+    *   docker-compose@1.29+: Leverage features like `profiles:` for optional services (email relay)
+    *   1password-cli@2: Use `op item create|get` commands, avoid deprecated flags
+    *   bash@4+: Enable `set -euo pipefail`, functions, and associative arrays
+    *   jq@1.6+: JSON parsing with `--raw-output` and error checking
+
+## PRD Compliance
+
+*   **Non-Negotiable:**
+
+    *   “No plaintext credentials in code or templates”: All secrets must be fetched at runtime via 1Password CLI.
+    *   “A one-command setup that produces a fully functioning MISP instance”: `setup.sh` must configure and launch the entire stack without manual edits.
+
+## App Flow Integration
+
+*   **Stack-Aligned Flow:**
+
+    *   Deployment Flow → `setup.sh` invokes `setup-1password.sh`, `import-1password-items.sh`, `load-1password-env.sh`, then `docker-compose up -d` to spin up MISP, DB, Redis, modules, workers, and email relay.
+
+## Best Practices
+
+*   Docker
+
+    *   Pin image versions in `docker-compose.yml` for reproducibility
+    *   Use `restart: on-failure` policies for critical services
+    *   Minimize image layers and leverage multi-stage builds for custom images
+
+*   Docker Compose
+
+    *   Use version `'3.9'` or higher syntax
+    *   Define `profiles` for optional services (e.g., `email-relay`)
+    *   Isolate service traffic with dedicated networks
+
+*   MISP
+
+    *   Mount persistent volumes for data and config
+    *   Separate web app and modules into distinct containers
+    *   Implement healthchecks for web UI and workers
+
+*   MariaDB
+
+    *   Use dedicated Docker volumes with correct permissions
+    *   Supply `MYSQL_ROOT_PASSWORD` and other creds via env file only
+    *   Bind to internal network interfaces only
+
+*   Redis
+
+    *   Require authentication (`requirepass`) in production
+    *   Persist data with AOF or snapshots as needed
+    *   Restrict to Docker network scope
+
+*   1Password CLI
+
+    *   Avoid logging actual secret values
+    *   Cache item IDs, not raw vault names
+    *   Introduce delays or retries to respect rate limits
+
+*   Bash
+
+    *   `set -euo pipefail` to catch errors early
+    *   Validate prerequisites (`command -v docker`, `op`) before use
+    *   Quote variables to prevent word splitting and globbing
+
+*   jq
+
+    *   Validate JSON input with `jq empty` beforehand
+    *   Use `--raw-output` for string extraction
+    *   Provide defaults for missing fields (`// ""`)
+
+*   Git
+
+    *   Add `.env` to `.gitignore`
+    *   Commit atomic changes with descriptive messages
+    *   Enforce pull requests and code reviews
+
+*   Microsoft Graph SMTP Relay
+
+    *   Store `client_secret` and tokens in 1Password only
+    *   Grant minimal Azure AD permissions (Mail.Send)
+    *   Rotate credentials regularly
+
+*   Claude Code
+
+    *   Review AI suggestions before merging
+    *   Use for snippet generation and refactoring only
+    *   Keep large, sensitive files out of AI prompts
+
+*   Cursor
+
+    *   Leverage context-aware completions, train with project docs
+    *   Track suggestions against code style guidelines
+    *   Do not expose secrets in the IDE chat history
+
+*   Xcode
+
+    *   Edit macOS-specific shell scripts only
+    *   Document any `.xcodeproj` configurations in `docs/`
+    *   Avoid bundling platform binaries in the repo
+
+## Rules
+
+*   Derive folder/file patterns directly from techStackDoc versions.
+*   Do not mix version patterns across tools (e.g., no Compose v1 syntax in v2 files).
+*   Mirror logic for CLI tooling: consistent script naming and version enforcement.
+*   Always fetch credentials at runtime; never hardcode secrets in code or config.
+*   Use `custom/config/` for all user or environment-specific overrides; core scripts must remain immutable.
+
+## Rules Metrics
+
+Before starting the project development, create a metrics file in the root of the project called
+
+`cursor_metrics.md`.
+
+### Instructions:
+
+*   Each time a cursor rule is used as context, update `cursor_metrics.md`.
+*   Use the following format for `cursor_metrics.md`:
+
+# Rules Metrics
+
+## Usage
+
+The number of times rules is used as context
+
+*   rule-name.mdc: 5
+*   another-rule.mdc: 2
+*   ...other rules

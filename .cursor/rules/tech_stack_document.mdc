@@ -1,0 +1,93 @@
+---
+description: Apply these rules when making changes to the project
+globs:
+alwaysApply: true
+---
+
+Update this rule if user requested changes to the project requirement, etc.
+# dshield-misp Tech Stack Document
+
+This document explains why we chose each technology for the dshield-misp project. It’s written in everyday language so that anyone—technical or not—can understand how the pieces fit together.
+
+## 1. Frontend Technologies
+
+The “front end” is what you see in your browser when you log into MISP. We didn’t build a separate user interface from scratch; instead, we rely on MISP’s built-in web application. Here’s what makes it work:
+
+• MISP Web Interface (PHP, JavaScript, HTML, CSS) – PHP and the CakePHP framework generate the pages you interact with.\
+– JavaScript (including standard libraries) adds dynamic behaviors—menus, pop-ups, form validations.\
+– HTML and CSS (Bootstrap styles) provide the layout and look-and-feel.
+
+Why these choices? MISP is a mature, open-source threat-sharing platform that already provides a polished front end. We avoid reinventing the wheel by using its battle-tested interface and style toolkit.
+
+## 2. Backend Technologies
+
+Everything behind the scenes—data storage, business logic, automation—runs in isolated containers or scripts:
+
+• Docker & Docker Compose – Package MISP, its database, cache, and email relay into separate containers.\
+– Orchestrate all containers with a single `docker-compose.yml` file for easy start/stop.
+
+• MISP Application (PHP/Python modules) – The core threat-sharing platform, handling user requests, event storage, and module execution.
+
+• MariaDB – Stores all MISP events, users, and settings in a relational database.
+
+• Redis – Provides fast in-memory caching and session storage for a snappier user experience.
+
+• Bash Scripts + jq – A set of shell scripts (`setup.sh`, `setup-1password.sh`, etc.) automate setup tasks.\
+– `jq` parses JSON output from the 1Password CLI so environment variables can be filled in automatically.
+
+• 1Password CLI – Securely fetches credentials (database passwords, admin secrets, email relay tokens) at runtime—no plaintext credentials in your files.
+
+• Git – Tracks source code and documentation changes so we can collaborate, roll back mistakes, and maintain version history.
+
+## 3. Infrastructure and Deployment
+
+We wanted a setup that anyone can deploy on their own hardware or cloud server without deep DevOps knowledge:
+
+• Containerization (Docker Engine) – Ensures the same environment everywhere—your laptop, a virtual machine, or a remote server.
+
+• Single-Host Orchestration (Docker Compose) – One command (`docker-compose up -d`) brings up all services in the correct order.
+
+• Interactive Setup Script (`setup.sh`) – Guides you through logging into 1Password, choosing an email relay option, and generating your `.env` file.
+
+• Version Control (Git) – All deployment scripts and config templates live in Git, so you can tag releases, branch for testing, and track who changed what.
+
+We do not yet include a hosted CI/CD pipeline out of the box, but the code can be connected to GitHub Actions or any other runner in the future.
+
+## 4. Third-Party Integrations
+
+To avoid building every feature ourselves, we rely on trusted external services:
+
+• 1Password – Centralized vault for all secrets. Our scripts call the 1Password CLI to fetch or store credentials on demand.
+
+• Email Relay Options – **Classic SMTP Relay**: Connect to any standard mail server (Postfix, Office365 SMTP, SendGrid, etc.) using host/port/TLS settings.\
+– **Microsoft Graph SMTP Relay**: An optional Node.js-based microservice that sends mail through Microsoft 365 using the Graph API, so you don’t share raw SMTP passwords.
+
+• (Planned) dshield-siem & dshield-mcp – While not active in v1, dshield-misp is structured so future integrations with Elastic-based SIEM pipelines and the dshield-mcp event hub can plug in easily.
+
+## 5. Security and Performance Considerations
+
+Security and speed are top priorities. Here’s how we address them:
+
+• No Hard-Coded Secrets – All credentials live in 1Password. Scripts fetch them only when needed, never storing plaintext on disk.
+
+• TLS Everywhere – We recommend exposing the MISP web UI and SMTP relay only over HTTPS/TLS to protect data in transit.
+
+• Container Isolation & Restart Policies – Each component runs in its own container with automatic restart on failure, improving reliability.
+
+• Caching with Redis – Sessions and frequently accessed data sit in memory for faster page loads.
+
+• Version Checks & Warnings – `setup.sh` enforces minimum Docker and Docker Compose versions to avoid known incompatibilities.
+
+• Throttle Handling – Our scripts pace API calls to 1Password to avoid hitting rate limits.
+
+## 6. Conclusion and Overall Tech Stack Summary
+
+In summary, the dshield-misp stack combines proven, open-source components and secure automation to deliver a complete MISP environment that is:
+
+• **Secure**: Credentials are never hard-coded; they live in 1Password and are retrieved on demand.\
+• **Portable**: Docker guarantees the same setup works on any modern Linux or macOS host.\
+• **Automated**: Bash scripts handle everything from secret creation to environment generation, reducing manual errors.\
+• **Extensible**: Template files and a custom directory let you add modules or tweak settings without touching core logic.\
+• **Reliable**: Automatic container restarts, Redis caching, and version checks ensure stable, fast operations.
+
+Unique to dshield-misp is its deep, end-to-end integration with 1Password—no other MISP deployment offers this level of automated secret handling out of the box. This makes setup safer, faster, and more maintainable, especially as part of a larger security ecosystem with dshield-siem and dshield-mcp on the horizon.

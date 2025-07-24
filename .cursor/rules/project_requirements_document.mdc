@@ -1,0 +1,201 @@
+---
+description: Apply these rules when making changes to the project
+globs:
+alwaysApply: true
+---
+
+Update this rule if user requested changes to the project requirement, etc.
+# Project Requirements Document (PRD): dshield-misp
+
+## 1. Project Overview
+
+The **dshield-misp** project delivers a fully automated, secure, and portable way to deploy a MISP (Malware Information Sharing Platform) instance. It uses Docker Compose to spin up the MISP web application, MariaDB database, Redis cache, MISP modules, workers, and an optional email relay. At its core, the project solves the problem of manual, error-prone deployments and hard-coded secrets by integrating deeply with 1Password. All credentials—database logins, admin passwords, email settings—are stored in and fetched from 1Password at runtime, eliminating insecure practices and boosting operational security.
+
+This solution is built with future growth in mind. It provides a modular structure ready for integration with related projects like **dshield-siem** (Elastic) and **dshield-mcp**, making it part of a larger threat-intelligence ecosystem. Key objectives include:
+
+*   A one-command setup that produces a fully functioning MISP instance
+*   No plaintext credentials in code or templates
+*   Clear extension points for additional services
+*   Comprehensive documentation so administrators can deploy, operate, and customize with confidence
+
+Success is measured by how quickly a newcomer can go from zero to a running, secure MISP environment and how easily they can adapt the setup for new integrations.
+
+## 2. In-Scope vs. Out-of-Scope
+
+### In-Scope (Version 1)
+
+*   **Full MISP Stack**
+
+    *   MISP web application
+    *   MariaDB database
+    *   Redis cache
+    *   MISP modules & workers
+    *   Optional email relay service
+
+*   **Secure Credential Management**
+
+    *   Automated 1Password CLI integration for all secrets
+
+        *   V1 MVP will be with 1Password; future releases will use a modular secrets handler that supports multiple backends, IE. Vault, Azure Keyvault, AWS Secrets, etc...
+
+    *   Bash scripts to create, populate, and load vault items
+
+*   **Container Orchestration**
+
+    *   `docker-compose.yml` with a `.env.template`
+    *   Single-host Docker Compose deployment
+
+*   **Interactive Setup Scripts**
+
+    *   `setup.sh` to guide initial install
+    *   `setup-1password.sh`, `import-1password-items.sh`, `load-1password-env.sh`
+
+*   **Documentation**
+
+    *   Step-by-step guides for setup, email relay options, troubleshooting
+
+### Out-of-Scope (Future Phases)
+
+*   Native utility for modular for credential management
+*   Built-in CI/CD pipeline or GitHub Actions
+*   High-availability or multi-node clustering
+*   Support for cloud-native orchestrators (Kubernetes, Swarm)
+*   Alternative secret backends (Vault, AWS Secrets Manager)
+*   Non-Linux or Windows host support
+*   Direct integration code for dshield-siem (for inbound signals, and enrichment of new events) and dshield-mcp (Bidirectional signals transfer to help event enrichment)
+
+## 3. User Flow
+
+When a new administrator wants to deploy MISP, they start by cloning the `dshield-misp` repository and installing prerequisites: Docker, Docker Compose, Bash, `jq`, and the 1Password CLI. They run `./setup.sh`, which prompts them to log in to 1Password, choose or create a vault, and select an email relay mode (standard SMTP or Office365 Graph). The script then programmatically generates and imports the necessary 1Password items (database credentials, MISP admin user, email relay secrets), writes a `.env` file from the template, and loads those environment variables for the Docker Compose stack.
+
+With credentials securely in place, the administrator runs `docker-compose up -d`. All containers spin up—MISP web UI, database, cache, modules, worker processes, and email relay—within seconds. The user opens their browser to the MISP web interface, logs in using the newly created admin credentials, and begins configuring threat-intelligence workflows. Later, if they need to update a password or add a new module, they place custom files in the `custom/` directory or rerun `load-1password-env.sh`, ensuring changes happen without editing core scripts.
+
+## 4. Core Features
+
+*   **Automated 1Password Integration**
+
+    *   `setup-1password.sh` and `import-1password-items.sh` create vault items
+    *   `load-1password-env.sh` injects secrets into environment variables
+    *   Supports 1Password’s password generator and manual overrides
+
+*   **Modular Email Relay**
+
+    *   **Classic SMTP**: Host, port, username, TLS settings
+    *   **Office365 Graph SMTP Relay**: Azure AD app registration, Graph API tokens
+
+*   **Interactive Setup Script (**`setup.sh`**)**
+
+    *   Validates prerequisites
+    *   Guides through 1Password vault selection and credential generation
+    *   Writes `.env` based on user choices
+
+*   **Dockerized Deployment**
+
+    *   `docker-compose.yml` defines services, networks, volumes
+    *   `.env.template` for customizing environment variables
+
+*   **Extensibility & Customization**
+
+    *   `custom/config/` folder for user-specific overrides
+    *   Template files that can be extended without touching core logic
+
+*   **Comprehensive Documentation**
+
+    *   Quick start, detailed setup, troubleshooting, and future integration guides
+
+## 5. Tech Stack & Tools
+
+*   **Containerization & Orchestration**
+
+    *   Docker (engine)
+    *   Docker Compose
+
+*   **Core Services**
+
+    *   MISP (Python/PHP threat-intelligence platform)
+    *   MariaDB (relational database)
+    *   Redis (caching & session store)
+
+*   **Secret Management**
+
+    *   1Password CLI (v2 or above)
+
+*   **Scripting & Utilities**
+
+    *   Bash (scripts and automation)
+    *   jq (JSON parsing)
+
+*   **Email Relay**
+
+    *   Classic SMTP via Postfix or any SMTP server
+    *   Microsoft Graph SMTP Relay (Node.js-based project)
+
+*   **Version Control & IDEs**
+
+    *   Git (source code management)
+    *   Claude Code, Cursor (AI-powered coding assistants)
+    *   Xcode (optional, for those customizing macOS scripts)
+
+## 6. Non-Functional Requirements
+
+*   **Performance**
+
+    *   MISP web UI should load in under 3 seconds on standard hardware
+    *   Startup time for all containers under 180 seconds
+
+*   **Security**
+
+    *   No hardcoded credentials in code or config files
+    *   TLS enforcement for email relay and web UI (if externally exposed)
+
+*   **Reliability**
+
+    *   Containers auto-restart on failure (Docker Compose restart policies)
+
+*   **Usability**
+
+    *   Clear, interactive prompts in `setup.sh`
+    *   Descriptive log output during install and runtime
+
+*   **Compliance**
+
+    *   Meet organizational policies for secret storage and network communication
+    *   Adhere to 1Password and Microsoft licensing terms
+
+## 7. Constraints & Assumptions
+
+*   Administrator has Docker Engine (v20+) and Docker Compose (v1.29+) installed
+*   A valid 1Password business or team account and CLI access
+*   Linux or macOS host with Bash shell; Windows Subsystem for Linux (WSL) may work but isn’t officially tested
+*   Network access to 1Password API, DB ports, and email relay endpoints
+*   For Office365 Graph relay: Azure AD subscription, ability to register an app with “Mail.Send” permissions
+*   Users are comfortable working with command-line interfaces and editing `.env` files
+
+## 8. Known Issues & Potential Pitfalls
+
+*   **1Password Rate Limits**
+
+    *   Fetching many secrets in quick succession may hit API throttling
+    *   Mitigation: use native 1Password utilities and libraries
+
+*   **Docker Version Incompatibilities**
+
+    *   Older Docker versions can break networking or volume mounts
+    *   Mitigation: enforce minimum versions in `setup.sh`
+
+*   **Azure AD Relay Complexity**
+
+    *   Misconfigured app registration will block email send
+    *   Mitigation: provide sample Azure Bicep/ARM templates and check scripts
+
+*   **File Permission Errors**
+
+    *   The Docker user may not own custom config files
+    *   Mitigation: include `chown` steps in `setup.sh` and documentation
+
+*   **Environment Variable Conflicts**
+
+    *   Local `.env` overrides may clash with 1Password variables
+    *   Mitigation: load only whitelisted vars, warn on conflicts
+
+This PRD is the central reference for all future technical artifacts—tech stack docs, frontend/backend guidelines, deployment scripts, and security reviews. Every detail needed to build, deploy, extend, and operate **dshield-misp** is captured here, leaving no room for ambiguity.

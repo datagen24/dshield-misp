@@ -1,0 +1,217 @@
+---
+description: Apply these rules when making changes to the project
+globs:
+alwaysApply: true
+---
+
+Update this rule if user requested changes to the project requirement, etc.
+# Backend Structure Document
+
+## 1. Backend Architecture
+
+Our backend is organized as a set of loosely coupled services running in Docker containers and coordinated with Docker Compose. It follows a simplified microservices pattern and leverages established open-source frameworks. Here’s how it’s laid out:
+
+*   **Containerized Services**
+
+    *   **MISP Application**: The core PHP/CakePHP web application plus Python-based MISP modules and workers.
+    *   **MariaDB**: The relational database storing all threat-intelligence data.
+    *   **Redis**: In-memory cache and session store for faster page loads and temporary data.
+    *   **Email Relay (optional)**: Either a standard SMTP service or the Office365 Graph SMTP Relay microservice.
+
+*   **Orchestration**
+
+    *   **Docker Compose** defines service dependencies, shared networks, and persistent volumes in a single YAML file.
+    *   Services start in the correct order: database → cache → web app → workers → email relay.
+
+*   **Automation & Scripting**
+
+    *   **Bash scripts** (`setup.sh`, `setup-1password.sh`, etc.) automate environment preparation, credential fetching, and configuration file generation.
+    *   **1Password CLI** integration to inject secrets at runtime—no credentials live in plain text.
+
+This design is:
+
+*   **Scalable**: You can split services onto multiple hosts or migrate to Kubernetes in future versions with minimal changes to the Docker images.
+*   **Maintainable**: Clear separation of concerns—each container has a single responsibility.
+*   **Performant**: Redis caching reduces database load; container restart policies keep services healthy.
+
+## 2. Database Management
+
+We use two data stores:
+
+*   **MariaDB (SQL)**
+
+    *   Stores structured MISP data: users, events, attributes, logs, etc.
+    *   Persistent data lives on a mounted Docker volume to survive container restarts.
+    *   Access controlled via credentials loaded at runtime from 1Password.
+
+*   **Redis (NoSQL, in-memory)**
+
+    *   Holds session data, rate-limiting counters, and transient cache entries.
+    *   Configured with a small persistent snapshot for quick recovery if needed.
+
+Data management practices:
+
+*   **Automated Backups**: Users can schedule `mysqldump` tasks for MariaDB and `redis-cli save` snapshots for Redis.
+*   **Environment Isolation**: Production, staging, and development each use separate vaults and Docker networks.
+*   **Secret Rotation**: Credentials rotate via 1Password workflows; rerunning `load-1password-env.sh` updates running services without code changes.
+
+## 3. Database Schema
+
+Below is a high-level overview of the main MariaDB tables (human-readable), followed by sample SQL definitions for core entities.
+
+### Human-Readable Schema Overview
+
+*   **users**: stores MISP user accounts, roles, and API keys.
+*   **events**: each threat-intelligence event (date, distribution, threat level).
+*   **attributes**: details tied to events (IP addresses, domains, file hashes).
+*   **objects**: structured collections of attributes for complex indicators.
+*   **logs**: audit trail of system actions and user activity.
+*   **galaxies**: threat actor or malware family mappings.
+
+### Sample SQL Definitions (MariaDB)
+
+`CREATE TABLE users ( id INT AUTO_INCREMENT PRIMARY KEY, org_id INT NOT NULL, email VARCHAR(255) UNIQUE NOT NULL, role ENUM('Admin','User','SyncOnly') NOT NULL, api_key CHAR(40) UNIQUE, created TIMESTAMP DEFAULT CURRENT_TIMESTAMP ); CREATE TABLE events ( id INT AUTO_INCREMENT PRIMARY KEY, info TEXT NOT NULL, date DATE NOT NULL, threat_level_id TINYINT NOT NULL, distribution TINYINT NOT NULL, published TINYINT DEFAULT 0, created_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP ); CREATE TABLE attributes ( id INT AUTO_INCREMENT PRIMARY KEY, event_id INT NOT NULL, type VARCHAR(100) NOT NULL, value TEXT NOT NULL, to_ids TINYINT DEFAULT 0, category VARCHAR(50), timestamp INT, FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE ); CREATE TABLE logs ( id BIGINT AUTO_INCREMENT PRIMARY KEY, model VARCHAR(50) NOT NULL, action VARCHAR(20) NOT NULL, user_id INT, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, details TEXT );`
+
+*Note: The full MISP schema contains dozens of tables; this subset illustrates the core relationships.*
+
+## 4. API Design and Endpoints
+
+MISP exposes a RESTful API over HTTPS. Our deployment ensures the API is available on the same host or behind a proxy. Key design points:
+
+*   **Authentication**
+
+    *   Each user has an API key stored in the `users.api_key` field.
+    *   Clients include `Authorization: Bearer <API_KEY>` in request headers.
+
+*   **Content Type**
+
+    *   JSON for both requests and responses.
+
+*   **Versioning**
+
+    *   URL path includes version (e.g., `/attributes/restServer.php/rest/v2/`).
+
+### Main Endpoints
+
+*   `GET /events/index` — List or search events by date, threat level, tags.
+*   `POST /events/add` — Create a new event (JSON body with `info`, `date`, etc.).
+*   `GET /attributes/view/{id}` — Retrieve details for a specific attribute.
+*   `POST /attributes/add` — Add an attribute to an event (`event_id`, `type`, `value`).
+*   `GET /users/index` — List MISP users (Admin only).
+*   `POST /users/edit/{id}` — Modify user roles or API key resets.
+*   `GET /servers/serverSettings` — Fetch global server settings (Admin only).
+
+These endpoints allow the frontend UI, automation scripts, and external systems (dshield-siem, dshield-mcp) to read and write threat data.
+
+## 5. Hosting Solutions
+
+You can deploy this entire stack on any modern Linux or macOS host. For production, we recommend a small VM or bare-metal server with the following specs:
+
+*   **CPU**: 2 vCPUs minimum (4+ for larger communities)
+*   **Memory**: 4–8 GB RAM (Redis and workers use RAM heavily)
+*   **Storage**: SSD with at least 50 GB (database growth over time)
+
+### Cloud vs. On-Premises
+
+*   **Cloud (AWS, Azure, GCP, DigitalOcean)**
+
+    *   Spin up a VM with Docker support.
+    *   Benefits: fast provisioning, easy snapshots, managed networking.
+
+*   **On-Premises**
+
+    *   Install on existing Linux physical or virtual servers.
+    *   Benefits: full data control, no cloud cost over time.
+
+Docker Compose abstracts the underlying host, so switching environments requires minimal effort. Volume mounts ensure data persists across host maintenance.
+
+## 6. Infrastructure Components
+
+Even though this is a single-host Docker Compose setup, you can layer on these components for improved performance:
+
+*   **Reverse Proxy & Load Balancer**
+
+    *   **nginx** or **Traefik** sits in front of the MISP web container, handling TLS termination and virtual hosts.
+    *   In a multi-node future, an external load balancer (AWS ELB, Azure LB) can distribute traffic.
+
+*   **Caching**
+
+    *   **Redis** provides in-memory speed for session data and common queries.
+
+*   **CDN**
+
+    *   Offload static assets (images, CSS, JavaScript) to Cloudflare or AWS CloudFront for faster global delivery.
+
+*   **Networking**
+
+    *   Docker user-defined bridge network keeps app containers isolated from host and external services.
+
+Together, these components ensure quick responses, secure connections, and an architecture that can grow from single host to multi-node clusters.
+
+## 7. Security Measures
+
+We treat security as a first-class concern at every layer:
+
+*   **Secret Management**
+
+    *   All passwords and API tokens live in 1Password; scripts fetch them at runtime.
+    *   No plaintext secrets in the code repository or container images.
+
+*   **Transport Security**
+
+    *   TLS required for both the web UI and SMTP relay.
+    *   Recommendations for Let’s Encrypt or corporate CAs in documentation.
+
+*   **Container Isolation**
+
+    *   Each service runs in its own container with minimal privileges.
+    *   Docker Compose restart policies keep services alive.
+
+*   **Network Segmentation**
+
+    *   Internal Docker network isolates database and Redis from the public interface.
+    *   Only the web and email relay ports open to the outside world.
+
+*   **Authentication & Authorization**
+
+    *   MISP’s role‐based access control limits users to read, write, or admin functions.
+    *   API key usage is audited in the `logs` table.
+
+## 8. Monitoring and Maintenance
+
+To keep the backend healthy, we rely on a mix of built-in and optional tools:
+
+*   **Container Health Checks**
+
+    *   Define `healthcheck` sections in `docker-compose.yml` for MariaDB and MISP.
+
+*   **Logging**
+
+    *   Docker logs captured and rotated with a standard driver (e.g., `json-file` with `max-size`).
+    *   Application logs stored in a mounted volume for long-term retention.
+
+*   **External Monitoring (optional)**
+
+    *   **Prometheus** & **Grafana**: scrape Docker metrics, expose MISP and database stats.
+    *   **ELK/EFK**: centralize logs from all containers for search and alerting.
+
+*   **Backup & Recovery**
+
+    *   Scheduled `mysqldump` for MariaDB and `redis-cli BGSAVE` for Redis.
+    *   Scripts available in `custom/maintenance` for one-click restore.
+
+*   **Upgrades & Patching**
+
+    *   Version checks in `setup.sh` enforce minimum Docker and Compose versions.
+    *   Recommended process: pull new Docker images, run `docker-compose pull`, then `up -d`.
+
+## 9. Conclusion and Overall Backend Summary
+
+The dshield-misp backend combines containerized open-source services, secure secret handling, and automated workflows into a clear, modular architecture. Each component plays a specific role:
+
+*   **Docker Compose** glues everything together in one command.
+*   **MariaDB** and **Redis** manage persistent and transient data.
+*   **1Password CLI** ensures credentials never live in plain text.
+*   **Bash scripts** automate setup, upgrades, and maintenance.
+
+This setup meets the project goals of secure, portable, and extensible MISP deployment. It’s built to scale from a single VM to a clustered environment, integrates easily with future dshield-siem and dshield-mcp services, and provides administrators with a straightforward path from zero to a production-ready threat-sharing platform.

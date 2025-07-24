@@ -1,0 +1,40 @@
+---
+description: Apply these rules when making changes to the project
+globs:
+alwaysApply: true
+---
+
+Update this rule if user requested changes to the project requirement, etc.
+# Frontend Guideline Document
+
+## 1. Frontend Architecture
+
+**Overview**
+
+*   Once the system is up, we use MISP’s built-in web interface rather than building a separate UI from scratch.
+*   Before system startup, the UI is primarily terminal commands and menu-driven scripts.
+
+## 2. Design Principles
+
+**Usability**
+
+*   Predictable page structure: header, navigation, content area, footer.
+*   Clear labels on buttons and menus; consistent placement of actions.
+
+**Accessibility**
+
+*   Keyboard-friendly navigation and form controls with proper labels.
+
+**Responsiveness**
+
+*   Bootstrap’s grid and utility classes ensure layouts adapt to desktop, tablet, and terminal setups without extra effort.
+
+**Application of Principles**
+
+*   Every new view uses the same layout wrapper and element calls.
+
+## 3. Conclusion and Overall Frontend Summary
+
+This project builds on MISP’s mature, server-rendered UI, leveraging CakePHP and Bootstrap, to deliver a consistent, accessible, and performant primary user interface.
+
+The terminal user interface can be via straight text and command line driven, although a fully encapsulated menu-driven tool for setup, monitoring, and management of the system is the end state

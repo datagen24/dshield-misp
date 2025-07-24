@@ -1,0 +1,160 @@
+---
+description: Apply these rules when making changes to the project
+globs:
+alwaysApply: true
+---
+
+Update this rule if user requested changes to the project requirement, etc.
+# Security Guidelines for dshield-misp
+
+This document defines the security principles, controls, and best practices to guide the design, implementation, deployment, and operation of the **dshield-misp** project. By following these guidelines, we ensure a robust, secure, and compliant MISP deployment that leverages Docker Compose and 1Password for credential management.
+
+## 1. Security Principles
+
+*   **Security by Design**: Embed security from the outset—across code, containers, scripts, and documentation.
+*   **Least Privilege**: Grant only the minimal rights needed to each component, container, and user.
+*   **Defense in Depth**: Layer controls so that no single failure leads to full compromise.
+*   **Fail Securely**: On errors or timeouts, avoid exposing sensitive data or leaving open ports.
+*   **Secure Defaults**: All new configurations and scripts must default to the most restrictive, secure setting.
+
+## 2. Authentication & Access Control
+
+### 2.1 1Password Integration
+
+*   Store **all** secrets (MISP admin password, database credentials, email relay tokens) in a dedicated 1Password vault.
+*   Use only the 1Password CLI to fetch secrets at runtime—**never** hardcode or check in secrets.
+*   Enforce strong password policies via 1Password’s generator (length ≥ 16, mix of character classes).
+
+### 2.2 MISP User Management
+
+*   Require the MISP web UI to use HTTPS with valid TLS certificates.
+*   Enforce unique, complex admin credentials and rotate them periodically.
+*   Configure MISP’s built-in roles (admin, auth, rest) and assign minimal privileges per role.
+*   Disable or remove default accounts/passwords prior to production launch.
+
+### 2.3 Docker Container Permissions
+
+*   Run application containers under non-root users where supported.
+*   Limit Docker Compose service capabilities via `cap_drop`, `read_only` volumes, and network scoping.
+*   Avoid mounting the host root filesystem—mount only required config directories as read-only when possible.
+
+## 3. Input Validation & Output Encoding
+
+*   All user-supplied data to MISP (events, attributes, modules) is handled by MISP’s own validation—ensure you’re on a patched version.
+*   Sanitize and validate any custom Bash scripts or CLI invocations that accept user arguments to prevent command injection.
+*   When extending MISP via plugins or custom modules, use parameterized queries or MISP’s ORM to prevent SQL injection.
+*   Enforce strict JSON schema validation for any external API or webhook integrations.
+
+## 4. Data Protection & Privacy
+
+*   **Encryption in Transit**:
+
+    *   Enforce TLS 1.2+ for MISP web UI, API endpoints, and email relay (SMTP/TLS or Graph API via HTTPS).
+    *   Use Docker network policies to restrict inter-service communication only to required ports.
+
+*   **Encryption at Rest**:
+
+    *   Enable file-system level encryption on volumes storing MariaDB and Redis data if supported by host.
+    *   Use database-level encryption (e.g., InnoDB tablespace encryption) for sensitive tables.
+
+*   **Secret Management**:
+
+    *   Do not store secrets in `.env` committed to Git. Provide only `.env.template` in version control.
+    *   Require administrators to `load-1password-env.sh` at runtime to populate `.env` dynamically.
+
+*   **PII Protection**:
+
+    *   Mask or redact sensitive fields when exporting or logging MISP events (e.g., source IPs, user emails).
+    *   Adhere to relevant privacy regulations (GDPR, CCPA) when configuring retention and deletion policies.
+
+## 5. API & Service Security
+
+*   **HTTPS Enforcement**: Expose only port 443/TLS externally; disable HTTP redirection or force redirect to HTTPS.
+*   **Rate Limiting & Throttling**: Use a reverse proxy (e.g., NGINX) or API gateway to enforce per-IP and per-user rate limits on the MISP API.
+*   **CORS Policy**: Restrict origins to the known MISP UI domain(s). Do not use wildcard (`*`) in production.
+*   **Authentication**: Require API key or OAuth tokens for all MISP REST API endpoints. Validate `exp`, `iat` claims if using JWT tokens.
+*   **Least Data Exposure**: Only return the fields required by each API call. Disable endpoints that are not used (e.g., legacy or debug APIs).
+*   **Proper HTTP Methods**: Enforce GET for reads, POST for creations, PUT/PATCH for updates, DELETE for removals. Respond with correct status codes (401, 403).
+
+## 6. Web Application Security Hygiene
+
+*   **Anti-CSRF**: Ensure MISP’s synchronizer token pattern is enabled for all state-changing forms and AJAX calls.
+
+*   **Security Headers**: Configure the web server (NGINX/Apache) fronting MISP to include:
+
+    *   Content-Security-Policy (CSP) restricting scripts and styles to trusted sources.
+    *   Strict-Transport-Security (HSTS) with `includeSubDomains` and `preload` if possible.
+    *   X-Content-Type-Options: `nosniff`
+    *   X-Frame-Options: `DENY` or `SAMEORIGIN`
+    *   Referrer-Policy: `no-referrer-when-downgrade` or stricter.
+
+*   **Secure Cookies**: Set `HttpOnly`, `Secure`, and `SameSite=Strict` on session cookies.
+
+*   **Disable Debug**: Ensure `debug = false` in MISP’s `config.php` for production.
+
+## 7. Infrastructure & Container Security
+
+*   **Image Hardening**:
+
+    *   Use minimal base images (e.g., Alpine or Debian Slim) and only install necessary packages.
+    *   Subscribe to Docker image security feeds and scan images regularly (Clair, Trivy).
+
+*   **Host Configuration**:
+
+    *   Harden the Docker host OS: disable unnecessary services, enforce SSH key-based logins, enable host-based firewall.
+    *   Keep Docker Engine and dependencies up to date (monitor CVEs).
+
+*   **Network Segmentation**:
+
+    *   Place MISP, database, and Redis on an isolated Docker network.
+    *   Do not expose database or Redis ports publicly—only MISP container may talk to them.
+
+*   **Volume Permissions**:
+
+    *   Set restrictive `chmod`/`chown` on host-mounted volumes (650 or 640).
+    *   Avoid world-writable mounts.
+
+*   **Secrets in Docker Compose**:
+
+    *   Leverage Docker Compose `secrets:` when deploying on Swarm or Kubernetes.
+    *   Never include secrets in environment variables for long-term storage in CI logs.
+
+## 8. Dependency Management & Supply Chain Security
+
+*   **Vetting**:
+
+    *   Only use official, well-maintained Docker images for MariaDB, Redis, and MISP.
+    *   Pin to specific image digests or tags to prevent unintended upgrades.
+
+*   **Vulnerability Scanning**:
+
+    *   Integrate an SCA tool (e.g., Dependabot, Snyk) against Dockerfiles and Bash dependencies.
+    *   Remediate critical/high vulnerabilities within defined SLAs.
+
+*   **Lockfiles & Reproducibility**:
+
+    *   For any supplemental language (Node.js for Graph SMTP Relay), check in `package-lock.json` or `yarn.lock`.
+    *   Periodically review and update dependencies to patched versions.
+
+## 9. Operational Security & Monitoring
+
+*   **Logging & Audit Trails**:
+
+    *   Centralize MISP logs, Docker logs, and system logs in a SIEM (e.g., dshield-siem).
+    *   Retain audit trails for administrative actions, API calls, and 1Password CLI invocations.
+
+*   **Alerting**:
+
+    *   Trigger alerts on repeated failed login attempts, API rate-limit triggers, or unexpected container restarts.
+
+*   **Backup & Recovery**:
+
+    *   Encrypt and store periodic MariaDB and Redis backups in a separate secure location.
+    *   Validate restore procedures quarterly.
+
+*   **Incident Response**:
+
+    *   Maintain runbooks for credential compromise, container escape, or data exfiltration.
+    *   Periodically test tabletop exercises with dshield-siem and dshield-mcp integration scenarios.
+
+By adhering to these security guidelines, the dshield-misp project will deliver a hardened, maintainable, and trustworthy MISP deployment that aligns with best practices and organizational policies. Continuous review and iteration of these controls are encouraged as the threat landscape evolves.
