@@ -17,7 +17,7 @@ version: '3.6'
 
 services:
   misp-email-relay:
-    image: ghcr.io/ggpwnkthx/microsoft-graph-smtp-relay:latest
+    image: microsoft-graph-smtp-relay:latest
     container_name: misp-email-relay
     environment:
       - CLIENT_ID=${O365_CLIENT_ID}
@@ -134,6 +134,86 @@ EOF
     chmod +x load-1password-env.sh
 }
 
+# Function to build MISP Docker images from source
+build_misp_images() {
+    echo "Building MISP Docker images from source..."
+    
+    # Check if the repository already exists
+    if [ -d "misp-docker" ]; then
+        echo "MISP Docker repository already exists. Updating..."
+        cd misp-docker
+        git pull origin dev
+        cd ..
+    else
+        echo "Cloning MISP Docker repository..."
+        git clone https://github.com/MISP/misp-docker.git
+        cd misp-docker
+        git checkout dev
+        cd ..
+    fi
+    
+    # Build the MISP Core image
+    echo "Building MISP Core image..."
+    cd misp-docker/core
+    docker build -t ghcr.io/misp/misp-docker/misp-core:latest .
+    
+    if [ $? -eq 0 ]; then
+        echo "✅ MISP Core image built successfully"
+    else
+        echo "❌ Failed to build MISP Core image"
+        echo "Please check the build logs above for errors"
+        exit 1
+    fi
+    
+    cd ../..
+    
+    # Build the MISP Modules image
+    echo "Building MISP Modules image..."
+    cd misp-docker/modules
+    docker build -t ghcr.io/misp/misp-docker/misp-modules:latest .
+    
+    if [ $? -eq 0 ]; then
+        echo "✅ MISP Modules image built successfully"
+    else
+        echo "❌ Failed to build MISP Modules image"
+        echo "Please check the build logs above for errors"
+        exit 1
+    fi
+    
+    cd ../..
+}
+
+# Function to build Microsoft-Graph-SMTP-Relay Docker image
+build_microsoft_graph_relay() {
+    echo "Building Microsoft-Graph-SMTP-Relay Docker image..."
+    
+    # Check if the repository already exists
+    if [ -d "Microsoft-Graph-SMTP-Relay" ]; then
+        echo "Microsoft-Graph-SMTP-Relay repository already exists. Updating..."
+        cd Microsoft-Graph-SMTP-Relay
+        git pull origin main
+        cd ..
+    else
+        echo "Cloning Microsoft-Graph-SMTP-Relay repository..."
+        git clone https://github.com/ggpwnkthx/Microsoft-Graph-SMTP-Relay.git
+    fi
+    
+    # Build the Docker image
+    echo "Building Docker image..."
+    cd Microsoft-Graph-SMTP-Relay
+    docker build -t microsoft-graph-smtp-relay:latest .
+    
+    if [ $? -eq 0 ]; then
+        echo "✅ Microsoft-Graph-SMTP-Relay image built successfully"
+    else
+        echo "❌ Failed to build Microsoft-Graph-SMTP-Relay image"
+        echo "Please check the build logs above for errors"
+        exit 1
+    fi
+    
+    cd ..
+}
+
 # Function to create 1Password setup instructions
 create_1password_instructions() {
     local relay_type=$1
@@ -141,11 +221,23 @@ create_1password_instructions() {
     cat > custom/config/1password-setup.md << 'EOF'
 # 1Password Integration Setup
 
-This document describes how to set up 1Password integration for secure credential management.
+This document provides a quick reference for 1Password integration with dshield-misp.
 
-## Prerequisites
-- 1Password CLI installed and authenticated
-- 1Password account with appropriate vault access
+## Quick Start
+
+For comprehensive setup instructions, see the main documentation: [1PASSWORD_SETUP.md](../1PASSWORD_SETUP.md)
+
+### Automated Setup (Recommended)
+```bash
+# Interactive setup for first-time users
+./setup-1password.sh
+
+# Create all items at once
+./setup-1password.sh --all
+
+# Import existing items
+./import-1password-items.sh
+```
 
 ## Required 1Password Items
 
@@ -213,10 +305,78 @@ docker-compose "$@"
 - The load-1password-env.sh script will fall back to default values if 1Password items are not found
 - Consider using 1Password's session management for additional security
 - Regularly rotate credentials stored in 1Password
+
+## Advanced Features
+
+The setup scripts support:
+- **Interactive creation** with sensible defaults
+- **Import from existing items** using op:// URLs
+- **Cross-vault operations** for different environments
+- **Batch operations** for automation
+- **Environment testing** to verify setup
+
+For detailed instructions, see [1PASSWORD_SETUP.md](../1PASSWORD_SETUP.md).
 EOF
 }
 
+# Function to check prerequisites
+check_prerequisites() {
+    echo "Checking prerequisites..."
+    
+    # Check if Docker is installed
+    if ! command -v docker &> /dev/null; then
+        echo "❌ Docker is not installed. Please install Docker first."
+        exit 1
+    fi
+    
+    # Check if Docker Compose is installed
+    if ! command -v docker-compose &> /dev/null; then
+        echo "❌ Docker Compose is not installed. Please install Docker Compose first."
+        exit 1
+    fi
+    
+    # Check if Docker daemon is running
+    if ! docker info &> /dev/null; then
+        echo "❌ Docker daemon is not running. Please start Docker first."
+        exit 1
+    fi
+    
+    # Check if Git is installed (needed for cloning repositories)
+    if ! command -v git &> /dev/null; then
+        echo "❌ Git is not installed. Please install Git first."
+        exit 1
+    fi
+    
+    echo "✅ Prerequisites check passed"
+}
+
+# Function to check and build MISP images if needed
+check_misp_images() {
+    echo "Checking MISP Docker images..."
+    
+    # Try to pull the official images
+    echo "Attempting to pull official MISP images..."
+    if docker pull ghcr.io/misp/misp-docker/misp-core:latest &> /dev/null && \
+       docker pull ghcr.io/misp/misp-docker/misp-modules:latest &> /dev/null; then
+        echo "✅ Official MISP images are accessible"
+        return 0
+    else
+        echo "⚠️  Official MISP images are not accessible, building from source..."
+        build_misp_images
+        return 1
+    fi
+}
+
 # Main setup logic
+echo "Checking prerequisites and MISP images..."
+
+# Check prerequisites
+check_prerequisites
+
+# Check and build MISP images if needed
+check_misp_images
+
+echo
 echo "Choose your email relay option:"
 echo "1) Classic SMTP Relay (username/password)"
 echo "2) Office365 Graph SMTP Relay (OAuth2)"
@@ -237,11 +397,16 @@ case $choice in
         ;;
     2)
         echo "Setting up Office365 Graph SMTP Relay..."
+        
+        # Build the Microsoft-Graph-SMTP-Relay Docker image
+        build_microsoft_graph_relay
+        
         create_o365_compose
         create_env_template "o365"
         create_1password_script "o365"
         create_1password_instructions "o365"
         echo "✓ Office365 Graph relay configured"
+        echo "  - Microsoft-Graph-SMTP-Relay Docker image built locally"
         echo "  - Edit .env.template with your Azure AD app details"
         echo "  - Copy .env.template to .env and update values"
         echo "  - Or set up 1Password integration (see custom/config/1password-setup.md)"

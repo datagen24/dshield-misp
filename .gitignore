@@ -33,4 +33,11 @@ Thumbs.db
 
 # Custom configs (user-specific)
 custom/config/local/
-custom/scripts/local/ 
+custom/scripts/local/
+
+# Microsoft Graph SMTP Relay build artifacts
+Microsoft-Graph-SMTP-Relay/
+microsoft-graph-smtp-relay/
+
+# MISP Docker build artifacts
+misp-docker/ 
